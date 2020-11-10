@@ -1,22 +1,10 @@
 package com.simtlix.fixserverexample;
 
-import quickfix.ApplicationAdapter;
-import quickfix.FieldNotFound;
-import quickfix.IncorrectTagValue;
-import quickfix.Message;
-import quickfix.RejectLogon;
-import quickfix.Session;
-import quickfix.SessionID;
-import quickfix.SessionNotFound;
-import quickfix.UnsupportedMessageType;
-import quickfix.field.ClOrdID;
-import quickfix.field.CumQty;
-import quickfix.field.ExecID;
-import quickfix.field.ExecType;
-import quickfix.field.LeavesQty;
-import quickfix.field.OrdStatus;
-import quickfix.field.OrderID;
+import quickfix.*;
+import quickfix.field.*;
 import quickfix.fix50.ExecutionReport;
+import quickfix.fix50.MarketDataRequest;
+import quickfix.fix50.MarketDataSnapshotFullRefresh;
 import quickfix.fix50.NewOrderSingle;
 import quickfix.fixt11.Logon;
 
@@ -42,20 +30,15 @@ public class ExampleServerApplication extends ApplicationAdapter {
     @Override
     public  void fromApp(Message message, SessionID sessionId) throws FieldNotFound, IncorrectTagValue,
             UnsupportedMessageType {
-        if (message instanceof NewOrderSingle) {
-            NewOrderSingle newOrderSingle = ((NewOrderSingle) message);
-            ExecutionReport executionReport = new ExecutionReport();
-            String clOrdID = newOrderSingle.getClOrdID().getValue();
-            executionReport.set(new ClOrdID(clOrdID));
-            executionReport.set(new ExecID("98765"));
-            executionReport.set(new OrderID("99999"));
-            executionReport.set(newOrderSingle.getSide());
-            executionReport.set(new OrdStatus(OrdStatus.NEW));
-            executionReport.set(new CumQty(0));
-            executionReport.set(new ExecType(ExecType.NEW));
-            executionReport.set(new LeavesQty(newOrderSingle.getOrderQty().getValue()));
+        if (message instanceof MarketDataRequest) {
+            MarketDataRequest marketDataRequest = ((MarketDataRequest) message);
+            MarketDataSnapshotFullRefresh marketDataSnapshotFullRefresh = new MarketDataSnapshotFullRefresh();
+            String mDReqID = marketDataRequest.getMDReqID().getValue();
+            marketDataSnapshotFullRefresh.set(new MDReqID(mDReqID));
+            StringField stringField58 = new StringField(58, "response");
+            marketDataSnapshotFullRefresh.setField(stringField58);
             try {
-                Session.sendToTarget(executionReport, sessionId);
+                Session.sendToTarget(marketDataSnapshotFullRefresh, sessionId);
             } catch (SessionNotFound e) {
                 throw new RuntimeException(e);
             }
