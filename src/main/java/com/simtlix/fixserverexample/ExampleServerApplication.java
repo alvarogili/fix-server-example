@@ -6,7 +6,9 @@ import quickfix.fix50.ExecutionReport;
 import quickfix.fix50.MarketDataRequest;
 import quickfix.fix50.MarketDataSnapshotFullRefresh;
 import quickfix.fix50.NewOrderSingle;
+import quickfix.fix50.component.Instrument;
 import quickfix.fixt11.Logon;
+import quickfix.fixt11.Reject;
 
 /**
  * By https://blog.10pines.com/es/2011/11/21/protocolo-fix-aspectos-basicos-y-utilizacion-en-java-mediante-la-librera-quickfixj/
@@ -23,7 +25,7 @@ public class ExampleServerApplication extends ApplicationAdapter {
     }
 
     private  boolean usuarioYPasswordCorrectos(Logon logon) throws FieldNotFound {
-        return logon.getUsername().getValue().equals("usuario")
+        return logon.getUsername().getValue().equals("user")
                 && logon.getPassword().getValue().equals("password");
     }
 
@@ -35,8 +37,11 @@ public class ExampleServerApplication extends ApplicationAdapter {
             MarketDataSnapshotFullRefresh marketDataSnapshotFullRefresh = new MarketDataSnapshotFullRefresh();
             String mDReqID = marketDataRequest.getMDReqID().getValue();
             marketDataSnapshotFullRefresh.set(new MDReqID(mDReqID));
-            StringField stringField58 = new StringField(58, "response");
-            marketDataSnapshotFullRefresh.setField(stringField58);
+            marketDataSnapshotFullRefresh.set(new MDBookType(1));
+            marketDataSnapshotFullRefresh.set(new NoMDEntries(1));
+            Instrument instrument = new Instrument();
+            instrument.set(new Symbol("EUR/USD"));
+            marketDataSnapshotFullRefresh.set(instrument);
             try {
                 Session.sendToTarget(marketDataSnapshotFullRefresh, sessionId);
             } catch (SessionNotFound e) {
