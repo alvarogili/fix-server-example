@@ -19,10 +19,13 @@ public class FixServerExampleApplication {
 			settings = new SessionSettings(new FileInputStream("src/main/resources/application.properties"));
 			acceptor = new SocketAcceptor(application, new MemoryStoreFactory(), settings,
 					new ScreenLogFactory(), new DefaultMessageFactory());
+			application.initMarketDataIncrementalRefresh();
 			acceptor.start();
 		} catch (ConfigError configError) {
 			configError.printStackTrace();
 		} catch (FileNotFoundException e) {
+			e.printStackTrace();
+		} catch (InterruptedException e) {
 			e.printStackTrace();
 		}
 	}

@@ -1,11 +1,9 @@
 package com.simtlix.fixserverexample;
 
 import quickfix.*;
+import quickfix.Message;
 import quickfix.field.*;
-import quickfix.fix50.ExecutionReport;
-import quickfix.fix50.MarketDataRequest;
-import quickfix.fix50.MarketDataSnapshotFullRefresh;
-import quickfix.fix50.NewOrderSingle;
+import quickfix.fix50.*;
 import quickfix.fix50.component.Instrument;
 import quickfix.fixt11.Logon;
 import quickfix.fixt11.Reject;
@@ -15,12 +13,16 @@ import quickfix.fixt11.Reject;
  */
 public class ExampleServerApplication extends ApplicationAdapter {
 
+    String mDReqID;
+    SessionID sessionId = null;
+
     @Override
     public  void fromAdmin(Message message, SessionID sessionId) throws FieldNotFound, RejectLogon {
         if (message instanceof Logon) {
             if (!usuarioYPasswordCorrectos((Logon) message)) {
                 throw new RejectLogon();
             }
+            this.sessionId = sessionId;
         }
     }
 
@@ -35,17 +37,94 @@ public class ExampleServerApplication extends ApplicationAdapter {
         if (message instanceof MarketDataRequest) {
             MarketDataRequest marketDataRequest = ((MarketDataRequest) message);
             MarketDataSnapshotFullRefresh marketDataSnapshotFullRefresh = new MarketDataSnapshotFullRefresh();
-            String mDReqID = marketDataRequest.getMDReqID().getValue();
+            //Campo requerido si el mensaje surge de un pedido mediante un mensaje
+            //MarkeDataRequest. Es el único identificador de la solicitud (copia el valor desde
+            //el mensaje MarketDataRequest).
+            mDReqID = marketDataRequest.getMDReqID().getValue();
             marketDataSnapshotFullRefresh.set(new MDReqID(mDReqID));
+            //Describe el tipo de libro para la cual se realiza la suscripción. Puede ser
+            //utilizada cuando se solicitan varias suscripciones sobre la misma conexión. Los
+            //libros de futuros siempre son order depth (3).
             marketDataSnapshotFullRefresh.set(new MDBookType(1));
-            marketDataSnapshotFullRefresh.set(new NoMDEntries(1));
-            Instrument instrument = new Instrument();
-            instrument.set(new Symbol("EUR/USD"));
-            marketDataSnapshotFullRefresh.set(instrument);
+            //Representación “humana” del título.
+            marketDataSnapshotFullRefresh.set(new Symbol("EUR/USD"));
+
+            MarketDataSnapshotFullRefresh.NoMDEntries group =
+                    new MarketDataSnapshotFullRefresh.NoMDEntries();
+            //Tipo de información de mercado solicitada.
+            group.set(new MDEntryType(MDEntryType.BID));
+            //Precio asociado a la entrada de datos informada. Requerido condicionalmente
+            //si el campo MDEntryType no es Variación o Volumen operado.
+            group.set(new MDEntryPx(12.32));
+            //Cantidad o volumen representado por la entrada de datos informada. Requerido
+            //condicionalmente si el campo MDEntryType = Compra(BID), Venta(OFFER), Operado(TRADE),
+            //Volumen de negociación (TRADE_VOLUME), o Interés abierto (OPEN_INTEREST)
+            group.set(new MDEntrySize(100));
+            marketDataSnapshotFullRefresh.addGroup(group);
+
             try {
                 Session.sendToTarget(marketDataSnapshotFullRefresh, sessionId);
-            } catch (SessionNotFound e) {
+            } catch (SessionNotFound  e) {
                 throw new RuntimeException(e);
+            }
+        }
+    }
+
+    public void initMarketDataIncrementalRefresh() throws InterruptedException {
+        Thread.sleep(2000l);
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                enviarMarketDataIncrementalRefresh();
+            }
+        }).start();
+    }
+
+    private void enviarMarketDataIncrementalRefresh() {
+        Double price = Double.valueOf(10.0);
+
+        while(true) {
+            try {
+                Thread.sleep(3000l);
+                if(sessionId == null)
+                    continue;
+                MarketDataIncrementalRefresh marketDataIncrementalRefresh = new MarketDataIncrementalRefresh();
+                //Campo requerido si el mensaje surge de un pedido mediante un mensaje
+                //MarkeDataRequest. Es el único identificador de la solicitud (copia el valor desde
+                //el mensaje MarketDataRequest).
+                marketDataIncrementalRefresh.set(new MDReqID(mDReqID));
+                //Describe el tipo de libro para la cual se realiza la suscripción. Puede ser
+                //utilizada cuando se solicitan varias suscripciones sobre la misma conexión. Los
+                //libros de futuros siempre son order depth (3).
+                marketDataIncrementalRefresh.set(new MDBookType(1));
+                //Representación “humana” del título.
+
+                //TODO: VER
+                //marketDataIncrementalRefresh.set(new Symbol("EUR/USD"));
+
+                marketDataIncrementalRefresh.set(new NoMDEntries(1));
+
+                NoMDEntries noMDEntries = new NoMDEntries();
+                MarketDataIncrementalRefresh.NoMDEntries group = new
+                        MarketDataIncrementalRefresh.NoMDEntries();
+                // Type of Market Data update action.
+                group.setField(279, new MDUpdateAction(MDUpdateAction.CHANGE));
+                //Type Market Data entry.
+                group.set(new MDEntryType(MDEntryType.BID));
+                //Price of the Market Data Entry. Conditionally required if MDEntryType is not Imbalance
+                //or Trade Volume.
+                group.set(new MDEntryPx(price));
+                //Quantity or volume represented by the Market Data Entry. Conditionally required when
+                //MDUpdateAction = New(0) andMDEntryType = Bid(0), Offer(1), Trade(2), Trade
+                //Volume(B), Open Interest (C), Turnover (x), or Trades (y)
+                group.set(new MDEntrySize(100));
+                marketDataIncrementalRefresh.addGroup(group);
+
+                    //Will send 1 message each 3 seconds
+                    Session.sendToTarget(marketDataIncrementalRefresh, sessionId);
+                    price += 10.0;
+            } catch (SessionNotFound | InterruptedException sessionNotFound) {
+                sessionNotFound.printStackTrace();
             }
         }
     }
